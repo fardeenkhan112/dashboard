@@ -101,16 +101,20 @@ const vite = await createViteServer({
 
 
     app.use(vite.middlewares);
-  } else {
+} else {
   // Production frontend
   app.use(express.static(frontendDist));
 
+  // Never send index.html for missing files/assets
+  app.get('/uploads/*', (req, res) => {
+    res.status(404).json({
+      success: false,
+      message: 'Image not found',
+    });
+  });
+
   // React Router fallback
   app.get('*', (req, res) => {
-    if (req.path.startsWith('/uploads/')) {
-      return res.status(404).send('Image not found');
-    }
-
     res.sendFile(path.join(frontendDist, 'index.html'));
   });
 }

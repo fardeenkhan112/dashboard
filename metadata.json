@@ -1,0 +1,5 @@
+{
+  "name": "Berry Dashboard - Admin Panel",
+  "description": "Full-stack React admin dashboard inspired by Berry Dashboard, with Express REST API, MongoDB CRUD and Multer image uploads.",
+  "requestFramePermissions": []
+}

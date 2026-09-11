@@ -1,4 +1,3 @@
-
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -27,18 +26,23 @@ fs.mkdirSync(uploadsDir, { recursive: true });
 const allowedOrigin = process.env.CORS_ORIGIN;
 
 app.use(
-  cors(
-    allowedOrigin
-      ? { origin: allowedOrigin }
-      : undefined
-  )
+cors(
+allowedOrigin
+? { origin: allowedOrigin }
+: undefined
+)
 );
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded product images
-app.use('/uploads', express.static(uploadsDir));
+app.use(
+'/uploads',
+express.static(uploadsDir, {
+fallthrough: false,
+})
+);
 
 // API routes
 app.use('/api/products', productRoutes);
@@ -47,88 +51,101 @@ app.use('/api/stats', statsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    status: 'ok',
-    database: 'MongoDB',
-    timestamp: new Date().toISOString(),
-  });
+res.json({
+success: true,
+status: 'ok',
+database: 'MongoDB',
+timestamp: new Date().toISOString(),
+});
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  if (err?.name === 'MulterError') {
-    const message =
-      err.code === 'LIMIT_FILE_SIZE'
-        ? 'Image size must be 5MB or less.'
-        : err.message || 'Image upload failed.';
+if (err?.name === 'MulterError') {
+const message =
+err.code === 'LIMIT_FILE_SIZE'
+? 'Image size must be 5MB or less.'
+: err.message || 'Image upload failed.';
 
-    return res.status(400).json({
-      success: false,
-      message,
-    });
-  }
 
-  if (err?.message?.startsWith('Only image files')) {
-    return res.status(400).json({
-      success: false,
-      message: err.message,
-    });
-  }
+return res.status(400).json({
+  success: false,
+  message,
+});
 
-  console.error('API error:', err);
 
-  return res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Internal server error.',
-  });
+}
+
+if (err?.message?.startsWith('Only image files')) {
+return res.status(400).json({
+success: false,
+message: err.message,
+});
+}
+
+console.error('API error:', err);
+
+return res.status(err.status || 500).json({
+success: false,
+message: err.message || 'Internal server error.',
+});
 });
 
 async function startServer() {
-  await connectDB();
+await connectDB();
 
-  if (process.env.NODE_ENV !== 'production') {
-
+if (process.env.NODE_ENV !== 'production') {
+// Development: Vite middleware
 const vite = await createViteServer({
-  root: __dirname,
-  server: {
-    middlewareMode: true,
-    hmr: process.env.DISABLE_HMR !== 'true',
-  },
-  appType: 'spa',
+root: __dirname,
+server: {
+middlewareMode: true,
+hmr: process.env.DISABLE_HMR !== 'true',
+},
+appType: 'spa',
 });
 
 
+app.use(vite.middlewares);
 
-    app.use(vite.middlewares);
+
 } else {
-  // Production frontend
-  app.use(express.static(frontendDist));
+// Production: serve Vite build
+app.use(
+express.static(frontendDist, {
+fallthrough: true,
+})
+);
 
-  // Never send index.html for missing files/assets
-  app.get('/uploads/*', (req, res) => {
-    res.status(404).json({
-      success: false,
-      message: 'Image not found',
-    });
-  });
 
-  // React Router fallback
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendDist, 'index.html'));
-  });
+// React Router fallback ONLY for page routes
+app.get('*', (req, res, next) => {
+  const requestPath = req.path;
+
+  // Never return index.html for missing assets/files
+  if (
+    requestPath.startsWith('/assets/') ||
+    requestPath.startsWith('/uploads/') ||
+    requestPath.includes('.')
+  ) {
+    return res.status(404).send('File not found');
+  }
+
+  res.sendFile(path.join(frontendDist, 'index.html'));
+});
+
+
 }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Berry Dashboard running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
+app.listen(PORT, '0.0.0.0', () => {
+console.log(`Berry Dashboard running on port ${PORT}`);
+console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+});
 }
 
 startServer().catch((error) => {
-  console.error('Server startup failed:', error.message);
-  process.exit(1);
+console.error('Server startup failed:', error.message);
+process.exit(1);
 });
 
 export default app;
-

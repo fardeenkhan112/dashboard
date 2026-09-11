@@ -102,14 +102,18 @@ const vite = await createViteServer({
 
     app.use(vite.middlewares);
   } else {
-    // Production frontend
-    app.use(express.static(frontendDist));
+  // Production frontend
+  app.use(express.static(frontendDist));
 
-    // React Router fallback
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(frontendDist, 'index.html'));
-    });
-  }
+  // React Router fallback
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/uploads/')) {
+      return res.status(404).send('Image not found');
+    }
+
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+}
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Berry Dashboard running on port ${PORT}`);
